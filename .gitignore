@@ -13,3 +13,4 @@ CMakeUserPresets.json
 *.iobj
 __pycache__/
 *.pyc
+.consulo/
