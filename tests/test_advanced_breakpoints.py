@@ -226,15 +226,13 @@ def test_disassemble(cppdbg_exe, loops_exe, loops_src):
         ev = client.wait_event("stopped", timeout=15)
         assert ev["body"]["reason"] == "breakpoint", ev
         tid2 = ev["body"]["threadId"]
-        # Get the current PC from stackTrace's instructionPointerReference
-        # is optional; instead we evaluate $ip.
-        r = client.request("evaluate", expression="@rip",
-                           context="repl")
-        assert r["success"], r
-        ip_text = r["body"]["result"]
-        # value like "0x00007ff6`abc012345"; strip the backtick.
-        ip_text = ip_text.replace("`", "")
-        print(f"[test] @rip = {ip_text}")
+        # Use the DAP-standard instructionPointerReference from the top
+        # frame — works on both x64 and arm64 without us evaluating an
+        # arch-specific register name.
+        rs = client.request("stackTrace", threadId=tid2, levels=1)
+        assert rs["success"], rs
+        ip_text = rs["body"]["stackFrames"][0]["instructionPointerReference"]
+        print(f"[test] top frame IP = {ip_text}")
         r = client.request("disassemble",
                            memoryReference=ip_text,
                            instructionCount=4,

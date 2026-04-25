@@ -3,6 +3,9 @@
 #include <dap/protocol.h>
 #include <dap/session.h>
 
+#include <cstdio>
+#include <string>
+
 #include "engine.h"
 
 namespace cppdbg {
@@ -69,6 +72,14 @@ void registerInspectionHandlers(dap::Session& session, Engine& engine) {
                     src.path = f.sourcePath;
                     sf.source = src;
                 }
+                // Memory reference for the frame's PC. Clients pass this
+                // straight to `disassemble` — works on x64 *and* arm64
+                // without needing to evaluate `@rip` / `@pc`.
+                char ipBuf[32];
+                std::snprintf(ipBuf, sizeof(ipBuf), "0x%016llx",
+                              static_cast<unsigned long long>(
+                                  f.instructionOffset));
+                sf.instructionPointerReference = std::string{ipBuf};
                 r.stackFrames.push_back(sf);
             }
             r.totalFrames = static_cast<dap::integer>(frames.size());
