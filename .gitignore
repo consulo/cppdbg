@@ -1,0 +1,15 @@
+build/
+out/
+.vs/
+.vscode/
+CMakeSettings.json
+CMakeUserPresets.json
+*.user
+*.pdb
+*.ilk
+*.exp
+*.obj
+*.ipdb
+*.iobj
+__pycache__/
+*.pyc

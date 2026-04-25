@@ -1,0 +1,153 @@
+name: windows-cppdbg
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            msvc_arch: x64
+            cmake_arch: x64
+            pe_machine: x64
+            runs_on: windows-2022
+          - arch: aarch64
+            msvc_arch: arm64
+            cmake_arch: ARM64
+            pe_machine: ARM64
+            runs_on: windows-11-arm
+
+    runs-on: ${{ matrix.runs_on }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup MSVC (${{ matrix.msvc_arch }})
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: ${{ matrix.msvc_arch }}
+
+      - name: Configure
+        run: cmake -B build -S . -A ${{ matrix.cmake_arch }} -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build cppdbg
+        run: cmake --build build --config Release --parallel
+
+      - name: Build hello.exe fixture
+        shell: cmd
+        run: |
+          mkdir build\fixtures
+          cl /nologo /EHsc /Zi /Od /Fe:build\fixtures\hello.exe /Fo:build\fixtures\ /Fd:build\fixtures\hello_pdb.pdb tests\fixtures\hello.cpp
+
+      - name: Build spin.exe fixture
+        shell: cmd
+        run: cl /nologo /EHsc /Zi /Od /Fe:build\fixtures\spin.exe /Fo:build\fixtures\ /Fd:build\fixtures\spin_pdb.pdb tests\fixtures\spin.cpp
+
+      - name: Build loops.exe fixture
+        shell: cmd
+        run: cl /nologo /EHsc /Zi /Od /Fe:build\fixtures\loops.exe /Fo:build\fixtures\ /Fd:build\fixtures\loops_pdb.pdb tests\fixtures\loops.cpp
+
+      - name: Build throws.exe fixture
+        shell: cmd
+        run: cl /nologo /EHsc /Zi /Od /Fe:build\fixtures\throws.exe /Fo:build\fixtures\ /Fd:build\fixtures\throws_pdb.pdb tests\fixtures\throws.cpp
+
+      - name: Verify PE machine
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "File: build/Release/cppdbg.exe"
+          dumpbin //HEADERS build/Release/cppdbg.exe | grep -E "machine \(.*\)" | head -1
+          echo
+          MACHINE=$(dumpbin //HEADERS build/Release/cppdbg.exe | grep -E "machine \(.*\)" | head -1 | sed -E 's/.*machine \(([^)]*)\).*/\1/')
+          if [ "$MACHINE" != "${{ matrix.pe_machine }}" ]; then
+              echo "::error::PE machine mismatch. Expected '${{ matrix.pe_machine }}' for ${{ matrix.arch }}, got '$MACHINE'."
+              exit 1
+          fi
+          echo "OK: PE machine is '$MACHINE' as expected."
+
+      - name: Smoke test (M1)
+        run: python tests/test_smoke.py build\Release\cppdbg.exe build\fixtures\hello.exe
+
+      - name: Breakpoint test (M2)
+        run: python tests/test_breakpoint.py build\Release\cppdbg.exe build\fixtures\hello.exe tests\fixtures\hello.cpp
+
+      - name: Inspection test (M3)
+        run: python tests/test_inspection.py build\Release\cppdbg.exe build\fixtures\hello.exe tests\fixtures\hello.cpp
+
+      - name: Stepping test (M4)
+        run: python tests/test_stepping.py build\Release\cppdbg.exe build\fixtures\hello.exe tests\fixtures\hello.cpp
+
+      - name: Evaluate test (M5)
+        run: python tests/test_evaluate.py build\Release\cppdbg.exe build\fixtures\hello.exe tests\fixtures\hello.cpp
+
+      - name: Attach test (M6)
+        run: python tests/test_attach.py build\Release\cppdbg.exe build\fixtures\spin.exe tests\fixtures\spin.cpp
+
+      - name: Exception filter test (M7)
+        run: python tests/test_exceptions.py build\Release\cppdbg.exe build\fixtures\throws.exe
+
+      - name: Advanced breakpoints + disassemble test (M8)
+        run: python tests/test_advanced_breakpoints.py build\Release\cppdbg.exe build\fixtures\loops.exe tests\fixtures\loops.cpp
+
+      - name: Pause test
+        run: python tests/test_pause.py build\Release\cppdbg.exe build\fixtures\spin.exe
+
+      - name: setVariable test
+        run: python tests/test_setvariable.py build\Release\cppdbg.exe build\fixtures\hello.exe tests\fixtures\hello.cpp
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cppdbg-windows-${{ matrix.arch }}
+          path: build/Release/cppdbg.exe
+          if-no-files-found: error
+
+  publish:
+    needs: build
+    if: github.ref == 'refs/heads/master' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: binaries-publish
+      cancel-in-progress: false
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Arrange binaries by os-arch
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          for dir in artifacts/cppdbg-windows-*/; do
+            name=$(basename "$dir")
+            arch="${name#cppdbg-windows-}"
+            mkdir -p "out/windows-$arch"
+            cp "$dir"cppdbg.exe "out/windows-$arch/"
+          done
+          find out -type f
+
+      - name: Commit and push to consulo/binaries
+        env:
+          CONSULO_BOT_TOKEN: ${{ secrets.CONSULO_BOT_TOKEN }}
+        run: |
+          set -euo pipefail
+          git clone "https://consulo-bot:${CONSULO_BOT_TOKEN}@github.com/consulo/binaries.git" binaries-repo
+          cd binaries-repo
+          git checkout master 2>/dev/null || git checkout --orphan master
+          git config user.name "consulo Bot"
+          git config user.email "consulo.bot@gmail.com"
+          cp -r ../out/. .
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "Update cppdbg windows binaries from ${GITHUB_REPOSITORY}@${GITHUB_SHA::7}"
+            git push -u origin master
+          fi
