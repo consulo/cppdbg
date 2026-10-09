@@ -4,6 +4,7 @@
 #include <dap/session.h>
 
 #include <string>
+#include <vector>
 
 #include "util/hr.h"
 #include "util/wstring.h"
@@ -60,6 +61,44 @@ void snapshotStepAnchor(IDebugRegisters2* registers, IDebugSymbols3* symbols,
         && nameSize > 1) {
         outFunc.assign(name, nameSize - 1);
     }
+}
+
+constexpr int kMaxThunkSteps = 4;
+
+bool isJumpThunk(IDebugControl5* control, IDebugRegisters2* registers,
+                 const std::wstring& func) {
+    if (func.find(L"!ILT+") != std::wstring::npos) return true;
+    ULONG64 pc = 0;
+    if (!control || !registers || FAILED(registers->GetInstructionOffset(&pc))) {
+        return false;
+    }
+    wchar_t text[512] = {};
+    ULONG size = 0;
+    ULONG64 end = 0;
+    if (FAILED(control->DisassembleWide(pc, 0, text, 512, &size, &end))) {
+        return false;
+    }
+    std::wstring all(text);
+    size_t lineEnd = all.find_last_not_of(L"\r\n");
+    if (lineEnd == std::wstring::npos) return false;
+    size_t lineStart = all.find_last_of(L"\n", lineEnd);
+    size_t from = lineStart == std::wstring::npos ? 0 : lineStart + 1;
+    std::wstring line = all.substr(from, lineEnd + 1 - from);
+    std::vector<std::wstring> tokens;
+    size_t pos = 0;
+    while (tokens.size() < 3) {
+        size_t start = line.find_first_not_of(L" \t", pos);
+        if (start == std::wstring::npos) break;
+        size_t stop = line.find_first_of(L" \t", start);
+        tokens.push_back(line.substr(start, stop == std::wstring::npos
+                                                ? std::wstring::npos
+                                                : stop - start));
+        if (stop == std::wstring::npos) break;
+        pos = stop;
+    }
+    if (tokens.size() < 3) return false;
+    const std::wstring& mnemonic = tokens[2];
+    return mnemonic == L"jmp" || mnemonic == L"b" || mnemonic == L"br";
 }
 
 }  // namespace
@@ -161,7 +200,12 @@ void Engine::waitForNextEvent() {
             snapshotStepAnchor(registers_, symbols_, nowLine, nowFunc);
             const bool moved = (nowFunc != stepStartFunc_)
                 || (nowLine != stepStartLine_ && nowLine != 0);
-            if (moved) {
+            if (moved && stepKind_ == StepKind::Into && nowLine == 0
+                && stepThunkHops_ < kMaxThunkSteps
+                && isJumpThunk(control_, registers_, nowFunc)) {
+                ++stepThunkHops_;
+                control_->SetExecutionStatus(DEBUG_STATUS_STEP_INTO);
+            } else if (moved) {
                 StepKind k = stepKind_;
                 stepKind_ = StepKind::None;
                 stepStartFunc_.clear();
@@ -188,9 +232,12 @@ void Engine::launch(const std::wstring& program,
     DEBUG_CREATE_PROCESS_OPTIONS opts = {};
     opts.CreateFlags = DEBUG_PROCESS | DEBUG_ONLY_THIS_PROCESS;
     opts.EngCreateFlags = DEBUG_ECREATE_PROCESS_DEFAULT;
-    CPPDBG_HR(client_->CreateProcess2Wide(
+    const HRESULT created = client_->CreateProcess2Wide(
         0, cmdLine.data(), &opts, sizeof(opts),
-        cwd.empty() ? nullptr : cwd.c_str(), nullptr));
+        cwd.empty() ? nullptr : cwd.c_str(), nullptr);
+    if (FAILED(created)) {
+        throw hr_error(created, "Cannot start " + to_utf8(program));
+    }
     processLive_ = true;
 
     // Pump the initial loader break (an OS STATUS_BREAKPOINT), which is
@@ -475,6 +522,7 @@ void Engine::stepOver(int threadEngineId) {
     if (!processLive_) return;
     if (system_) system_->SetCurrentThreadId(static_cast<ULONG>(threadEngineId));
     snapshotStepAnchor(registers_, symbols_, stepStartLine_, stepStartFunc_);
+    stepThunkHops_ = 0;
     stepKind_ = StepKind::Over;
     CPPDBG_HR(control_->SetExecutionStatus(DEBUG_STATUS_STEP_OVER));
     targetRunning_ = true;
@@ -484,6 +532,7 @@ void Engine::stepInto(int threadEngineId) {
     if (!processLive_) return;
     if (system_) system_->SetCurrentThreadId(static_cast<ULONG>(threadEngineId));
     snapshotStepAnchor(registers_, symbols_, stepStartLine_, stepStartFunc_);
+    stepThunkHops_ = 0;
     stepKind_ = StepKind::Into;
     CPPDBG_HR(control_->SetExecutionStatus(DEBUG_STATUS_STEP_INTO));
     targetRunning_ = true;

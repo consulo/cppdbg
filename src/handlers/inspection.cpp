@@ -30,7 +30,7 @@ void registerInspectionHandlers(dap::Session& session, Engine& engine) {
             try {
                 threads = runOnEngine(engine, [&] { return engine.getThreads(); });
             } catch (const std::exception& ex) {
-                return dap::Error(ex.what());
+                return dap::Error(std::string(ex.what()));
             }
             dap::ThreadsResponse r;
             for (const DapThread& t : threads) {
@@ -57,7 +57,7 @@ void registerInspectionHandlers(dap::Session& session, Engine& engine) {
                     return engine.getStackTrace(threadId, startFrame, levels);
                 });
             } catch (const std::exception& ex) {
-                return dap::Error(ex.what());
+                return dap::Error(std::string(ex.what()));
             }
 
             dap::StackTraceResponse r;
@@ -95,7 +95,7 @@ void registerInspectionHandlers(dap::Session& session, Engine& engine) {
                 scopes = runOnEngine(engine,
                                      [&] { return engine.getScopes(frameId); });
             } catch (const std::exception& ex) {
-                return dap::Error(ex.what());
+                return dap::Error(std::string(ex.what()));
             }
             dap::ScopesResponse r;
             for (const DapScope& s : scopes) {
@@ -119,7 +119,7 @@ void registerInspectionHandlers(dap::Session& session, Engine& engine) {
                 vars = runOnEngine(engine,
                                    [&] { return engine.getVariables(varRef); });
             } catch (const std::exception& ex) {
-                return dap::Error(ex.what());
+                return dap::Error(std::string(ex.what()));
             }
             dap::VariablesResponse r;
             for (const DapVariable& v : vars) {
@@ -147,7 +147,7 @@ void registerInspectionHandlers(dap::Session& session, Engine& engine) {
                     return engine.evaluate(frameId, expression, context);
                 });
             } catch (const std::exception& ex) {
-                return dap::Error(ex.what());
+                return dap::Error(std::string(ex.what()));
             }
             dap::EvaluateResponse r;
             r.result = res.result;
@@ -168,7 +168,7 @@ void registerInspectionHandlers(dap::Session& session, Engine& engine) {
                     return engine.setVariable(varRef, name, value);
                 });
             } catch (const std::exception& ex) {
-                return dap::Error(ex.what());
+                return dap::Error(std::string(ex.what()));
             }
             dap::SetVariableResponse r;
             r.value = updated.value;

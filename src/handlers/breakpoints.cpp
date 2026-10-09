@@ -60,7 +60,7 @@ void registerBreakpointHandlers(dap::Session& session, Engine& engine) {
                                })
                                .get();
             } catch (const std::exception& ex) {
-                return dap::Error(ex.what());
+                return dap::Error(std::string(ex.what()));
             }
 
             dap::SetBreakpointsResponse resp;
@@ -98,7 +98,7 @@ void registerBreakpointHandlers(dap::Session& session, Engine& engine) {
                                })
                                .get();
             } catch (const std::exception& ex) {
-                return dap::Error(ex.what());
+                return dap::Error(std::string(ex.what()));
             }
             dap::SetFunctionBreakpointsResponse resp;
             resp.breakpoints.reserve(resolved.size());
@@ -125,7 +125,7 @@ void registerBreakpointHandlers(dap::Session& session, Engine& engine) {
                     })
                     .get();
             } catch (const std::exception& ex) {
-                return dap::Error(ex.what());
+                return dap::Error(std::string(ex.what()));
             }
             return dap::SetExceptionBreakpointsResponse{};
         });
@@ -157,7 +157,7 @@ void registerBreakpointHandlers(dap::Session& session, Engine& engine) {
                           })
                           .get();
             } catch (const std::exception& ex) {
-                return dap::Error(ex.what());
+                return dap::Error(std::string(ex.what()));
             }
             dap::DisassembleResponse resp;
             resp.instructions.reserve(raw.size());

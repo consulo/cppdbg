@@ -244,6 +244,7 @@ private:
     StepKind stepKind_ = StepKind::None;
     ULONG stepStartLine_ = 0;
     std::wstring stepStartFunc_;
+    int stepThunkHops_ = 0;
     // pause() is the only state-mutating call the DAP thread makes
     // directly (SetInterrupt is documented as thread-safe), so this
     // flag must be atomic — the engine thread reads it inside callbacks.

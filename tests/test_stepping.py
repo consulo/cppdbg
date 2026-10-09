@@ -87,6 +87,9 @@ def main(argv: list[str]) -> int:
         assert "add" in in_frame["name"], (
             f"expected to be in add(), got {in_frame['name']!r}"
         )
+        assert in_frame["line"] == 3, (
+            f"expected add() source line 3, got {in_frame['name']!r} line={in_frame['line']}"
+        )
 
         # Step out: back to main, at or just past the call site.
         r = client.request("stepOut", threadId=thread_id)

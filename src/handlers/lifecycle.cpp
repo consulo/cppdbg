@@ -107,7 +107,7 @@ void registerLifecycleHandlers(dap::Session& session, Engine& engine,
                     })
                     .get();
             } catch (const std::exception& ex) {
-                return dap::Error(ex.what());
+                return dap::Error(std::string(ex.what()));
             }
             return dap::LaunchResponse{};
         });
@@ -123,7 +123,7 @@ void registerLifecycleHandlers(dap::Session& session, Engine& engine,
                     .post([&engine, pid] { engine.attach(pid); })
                     .get();
             } catch (const std::exception& ex) {
-                return dap::Error(ex.what());
+                return dap::Error(std::string(ex.what()));
             }
             return dap::AttachResponse{};
         });
@@ -134,7 +134,7 @@ void registerLifecycleHandlers(dap::Session& session, Engine& engine,
             try {
                 engine.commands().post([&] { engine.resume(); }).get();
             } catch (const std::exception& ex) {
-                return dap::Error(ex.what());
+                return dap::Error(std::string(ex.what()));
             }
             return dap::ConfigurationDoneResponse{};
         });
@@ -145,7 +145,7 @@ void registerLifecycleHandlers(dap::Session& session, Engine& engine,
             try {
                 engine.commands().post([&] { engine.resume(); }).get();
             } catch (const std::exception& ex) {
-                return dap::Error(ex.what());
+                return dap::Error(std::string(ex.what()));
             }
             dap::ContinueResponse r;
             r.allThreadsContinued = true;
@@ -164,7 +164,7 @@ void registerLifecycleHandlers(dap::Session& session, Engine& engine,
                     })
                     .get();
             } catch (const std::exception& ex) {
-                return dap::Error(ex.what());
+                return dap::Error(std::string(ex.what()));
             }
             if (!sigFired->exchange(true)) disconnected.set_value();
             return dap::DisconnectResponse{};

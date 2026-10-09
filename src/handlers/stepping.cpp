@@ -15,7 +15,7 @@ void registerSteppingHandlers(dap::Session& session, Engine& engine) {
             try {
                 engine.commands().post([&, tid] { engine.stepOver(tid); }).get();
             } catch (const std::exception& ex) {
-                return dap::Error(ex.what());
+                return dap::Error(std::string(ex.what()));
             }
             return dap::NextResponse{};
         });
@@ -27,7 +27,7 @@ void registerSteppingHandlers(dap::Session& session, Engine& engine) {
             try {
                 engine.commands().post([&, tid] { engine.stepInto(tid); }).get();
             } catch (const std::exception& ex) {
-                return dap::Error(ex.what());
+                return dap::Error(std::string(ex.what()));
             }
             return dap::StepInResponse{};
         });
@@ -39,7 +39,7 @@ void registerSteppingHandlers(dap::Session& session, Engine& engine) {
             try {
                 engine.commands().post([&, tid] { engine.stepOut(tid); }).get();
             } catch (const std::exception& ex) {
-                return dap::Error(ex.what());
+                return dap::Error(std::string(ex.what()));
             }
             return dap::StepOutResponse{};
         });
@@ -55,7 +55,7 @@ void registerSteppingHandlers(dap::Session& session, Engine& engine) {
             try {
                 engine.pause();
             } catch (const std::exception& ex) {
-                return dap::Error(ex.what());
+                return dap::Error(std::string(ex.what()));
             }
             return dap::PauseResponse{};
         });
