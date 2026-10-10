@@ -102,6 +102,9 @@ jobs:
       - name: setVariable test
         run: python tests/test_setvariable.py build\Release\cppdbg.exe build\fixtures\hello.exe tests\fixtures\hello.cpp
 
+      - name: Launch defaults test
+        run: python tests/test_launch_defaults.py build\Release\cppdbg.exe build\fixtures\hello.exe tests\fixtures\hello.cpp
+
       - uses: actions/upload-artifact@v4
         with:
           name: cppdbg-windows-${{ matrix.arch }}

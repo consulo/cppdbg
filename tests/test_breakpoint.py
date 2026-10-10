@@ -38,7 +38,8 @@ def main(argv: list[str]) -> int:
         assert r["success"], r
         client.wait_event("initialized")
 
-        r = client.request("launch", timeout=30, program=hello_exe)
+        r = client.request("launch", timeout=30, program=hello_exe,
+                           stopOnEntry=True)
         assert r["success"], r
 
         # Set a breakpoint on line 7 ("int y = 3;").

@@ -19,6 +19,7 @@ public:
     dap::string program;
     dap::optional<dap::array<dap::string>> args;
     dap::optional<dap::string> cwd;
+    dap::optional<dap::boolean> stopOnEntry;
 };
 
 // Attach by OS process id. Adapter-specific.
@@ -35,7 +36,8 @@ DAP_IMPLEMENT_STRUCT_TYPEINFO_EXT(cppdbg::CppdbgLaunchRequest,
                                   dap::LaunchRequest, "launch",
                                   DAP_FIELD(program, "program"),
                                   DAP_FIELD(args, "args"),
-                                  DAP_FIELD(cwd, "cwd"));
+                                  DAP_FIELD(cwd, "cwd"),
+                                  DAP_FIELD(stopOnEntry, "stopOnEntry"));
 DAP_DECLARE_STRUCT_TYPEINFO(cppdbg::CppdbgAttachRequest);
 DAP_IMPLEMENT_STRUCT_TYPEINFO_EXT(cppdbg::CppdbgAttachRequest,
                                   dap::AttachRequest, "attach",
@@ -101,9 +103,10 @@ void registerLifecycleHandlers(dap::Session& session, Engine& engine,
                 auto program = to_wide(req.program);
                 auto args = joinArgs(req.args);
                 auto cwd = req.cwd ? to_wide(*req.cwd) : std::wstring{};
+                const bool stopOnEntry = req.stopOnEntry.value(false);
                 engine.commands()
-                    .post([&engine, program, args, cwd] {
-                        engine.launch(program, args, cwd);
+                    .post([&engine, program, args, cwd, stopOnEntry] {
+                        engine.launch(program, args, cwd, stopOnEntry);
                     })
                     .get();
             } catch (const std::exception& ex) {

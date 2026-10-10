@@ -29,6 +29,7 @@ find_package(DbgEng REQUIRED)
 
 add_executable(cppdbg
     src/main.cpp
+    src/debuggee_output.cpp
     src/engine.cpp
     src/event_callbacks.cpp
     src/handlers/breakpoints.cpp

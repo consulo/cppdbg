@@ -43,7 +43,8 @@ def main(argv: list[str]) -> int:
         assert r["body"].get("supportsEvaluateForHovers") is True, r
         client.wait_event("initialized")
 
-        r = client.request("launch", timeout=30, program=hello_exe)
+        r = client.request("launch", timeout=30, program=hello_exe,
+                           stopOnEntry=True)
         assert r["success"], r
         r = client.request("setBreakpoints",
                            source={"path": hello_src},

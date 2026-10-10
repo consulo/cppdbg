@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "command_queue.h"
+#include "debuggee_output.h"
 #include "event_callbacks.h"
 
 namespace dap {
@@ -100,7 +101,7 @@ public:
 
     // ---- Called from the engine thread (command closures) ----
     void launch(const std::wstring& program, const std::wstring& args,
-                const std::wstring& cwd);
+                const std::wstring& cwd, bool stopOnEntry);
     // Attach to an already-running process by OS PID. Halts the target
     // (DbgEng injects a breakpoint thread) and defers stopped(entry) to
     // configurationDone, mirroring the launch flow.
@@ -201,6 +202,10 @@ private:
     std::thread thread_;
     std::atomic<bool> running_{false};
 
+    static constexpr DWORD kOutputDrainTimeoutMs = 2000;
+    DebuggeeOutput output_;
+    std::thread exitNotifier_;
+
     CommandQueue queue_;
     EventCallbacks callbacks_{this};
 
@@ -215,6 +220,7 @@ private:
     bool processLive_ = false;      // debuggee exists
     bool targetRunning_ = false;    // WaitForEvent should be called
     bool entryPending_ = true;      // next hit should be reported as entry
+    bool stopOnEntry_ = true;
     bool entryStopPending_ = false; // entry hit but stopped event deferred
                                     // until configurationDone surfaces it
     ULONG entryBreakpointId_ = 0;   // id of the $exentry bp

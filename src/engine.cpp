@@ -118,6 +118,8 @@ void Engine::stop() {
     if (!running_.exchange(false)) return;
     queue_.stop();
     if (thread_.joinable()) thread_.join();
+    if (exitNotifier_.joinable()) exitNotifier_.join();
+    output_.close();
 }
 
 void Engine::threadMain() {
@@ -226,16 +228,33 @@ void Engine::waitForNextEvent() {
 
 void Engine::launch(const std::wstring& program,
                     const std::wstring& args,
-                    const std::wstring& cwd) {
+                    const std::wstring& cwd,
+                    bool stopOnEntry) {
+    stopOnEntry_ = stopOnEntry;
     std::wstring cmdLine = buildCommandLine(program, args);
 
     DEBUG_CREATE_PROCESS_OPTIONS opts = {};
     opts.CreateFlags = DEBUG_PROCESS | DEBUG_ONLY_THIS_PROCESS;
-    opts.EngCreateFlags = DEBUG_ECREATE_PROCESS_DEFAULT;
+    opts.EngCreateFlags = DEBUG_ECREATE_PROCESS_INHERIT_HANDLES;
+    try {
+        output_.redirect([this](const std::string& category,
+                                const std::string& text) {
+            if (!session_) return;
+            dap::OutputEvent out;
+            out.category = category;
+            out.output = text;
+            session_->send(out);
+        });
+    } catch (...) {
+        output_.close();
+        throw;
+    }
     const HRESULT created = client_->CreateProcess2Wide(
         0, cmdLine.data(), &opts, sizeof(opts),
         cwd.empty() ? nullptr : cwd.c_str(), nullptr);
+    output_.restore();
     if (FAILED(created)) {
+        output_.close();
         throw hr_error(created, "Cannot start " + to_utf8(program));
     }
     processLive_ = true;
@@ -272,6 +291,7 @@ void Engine::launch(const std::wstring& program,
 
 void Engine::attach(ULONG processId) {
     if (processLive_) throw std::runtime_error("attach: already attached");
+    stopOnEntry_ = true;
 
     // Same `entryPending_` flag as launch — the attach handshake produces
     // a STATUS_BREAKPOINT exception (DbgEng injects DbgBreakPoint into
@@ -298,8 +318,10 @@ void Engine::resume() {
         // stopped(entry) event we deferred and stay paused. The user's
         // subsequent continue lands on the SetExecutionStatus path below.
         entryStopPending_ = false;
-        emitStopped(StopReason::Entry, {});
-        return;
+        if (stopOnEntry_) {
+            emitStopped(StopReason::Entry, {});
+            return;
+        }
     }
     CPPDBG_HR(control_->SetExecutionStatus(DEBUG_STATUS_GO));
     targetRunning_ = true;
@@ -991,11 +1013,15 @@ void Engine::onProcessExited(ULONG exitCode) {
     targetRunning_ = false;
     processLive_ = false;
     if (!session_) return;
-    dap::ExitedEvent exited;
-    exited.exitCode = static_cast<dap::integer>(exitCode);
-    session_->send(exited);
-    dap::TerminatedEvent terminated;
-    session_->send(terminated);
+    if (exitNotifier_.joinable()) exitNotifier_.join();
+    exitNotifier_ = std::thread([this, exitCode] {
+        output_.waitDrained(kOutputDrainTimeoutMs);
+        dap::ExitedEvent exited;
+        exited.exitCode = static_cast<dap::integer>(exitCode);
+        session_->send(exited);
+        dap::TerminatedEvent terminated;
+        session_->send(terminated);
+    });
 }
 
 void Engine::onBreakpoint(ULONG id) {

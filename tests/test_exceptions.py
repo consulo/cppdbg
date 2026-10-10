@@ -42,7 +42,8 @@ def run_session(cppdbg_exe, throws_exe, exception_filters):
         )
         client.wait_event("initialized")
 
-        r = client.request("launch", timeout=30, program=throws_exe)
+        r = client.request("launch", timeout=30, program=throws_exe,
+                           stopOnEntry=True)
         assert r["success"], r
         r = client.request("setExceptionBreakpoints",
                            filters=exception_filters)

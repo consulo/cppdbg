@@ -67,7 +67,8 @@ def setup_session(cppdbg_exe, loops_exe, loops_src, source_breakpoints):
         assert body.get(cap) is True, f"{cap} not advertised: {body}"
     client.wait_event("initialized")
 
-    r = client.request("launch", timeout=30, program=loops_exe)
+    r = client.request("launch", timeout=30, program=loops_exe,
+                           stopOnEntry=True)
     assert r["success"], r
 
     if source_breakpoints:

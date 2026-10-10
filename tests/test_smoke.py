@@ -48,7 +48,8 @@ def main(argv: list[str]) -> int:
 
         client.wait_event("initialized")
 
-        r = client.request("launch", timeout=30, program=hello_exe)
+        r = client.request("launch", timeout=30, program=hello_exe,
+                           stopOnEntry=True)
         assert r["success"], r
 
         r = client.request("configurationDone")
